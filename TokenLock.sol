@@ -386,43 +386,33 @@ contract TokenLock {
     // ERC20 basic token contract being held
     IERC20 private immutable _token;
 
+    mapping(address => bool) private isRelease;
+
     address public constant communityRewards = address(0x60D14e5B434F51559260238a2d1040Aba60F9CF1);
     address public constant teamAndConsultants = address(0x5C6027FEF84851577A93B28341D54D84Fc542921);
     address public constant treasury = address(0x98466B411908e307e9a6B6DA0ce6D53C24A36635);
     address public constant strategicInvestorPhaseSeed = address(0x689C3030bADB1178704A6c2971a9d25a6AF9508a);
     address public constant strategicInvestorPhasePrivate = address(0x6472054BE7158f80bE43CA14292CF708695735b5);
     address public constant partnershipEcosystemIncentive = address(0xbAf59306571E3f97a3cd37aFf67705Fc77F3c8aB);
+    address public constant Marketing = address(0xb9EB4546A1Fde0D984bA936cCEDAe300B31f27c5);
+    address public constant IDO = address(0x41DA647170B4F73654829f1C2d10fd6fBeA479F4);
 
-    uint256 public months = 30 days;
-    //uint256 public months = 1 minutes;
-    uint256 public tokenAmount = 10000000000;
-    uint256 private _communityRewardsTime;  //CommunityRewards lock time
-    uint256 private _teamAndConsultantsTime;  //TeamAndConsultants lock time
-    uint256 private _treasuryTime;  //Treasury lock time
-    uint256 private _strategicInvestorPhaseSeedTime;  //StrategicInvestorPhaseSeed lock time
-    uint256 private _strategicInvestorPhasePrivateTime;  //StrategicInvestorPhasePrivate lock time
-    uint256 private _partnershipEcosystemIncentiveTime;  //PartnershipEcosystemIncentive lock time
-    uint256 public communityRewardsFirstAmount = tokenAmount*25/100*16/189; // communityRewards first release amount
-    uint256 public communityReleaseNumber;  //  communityRewards release number
-    uint256 public teamAndConsultantsNumber;  //  teamAndConsultants release number
-    uint256 public treasuryNumber;  //  treasury release number
-    uint256 public strategicInvestorPhaseSeedNumber;  //  strategicInvestorPhaseSeed release number
-    uint256 public strategicInvestorPhasePrivateNumber;  //  strategicInvestorPhasePrivate release number
-    uint256 public partnershipEcosystemIncentiveNumber;  //  partnershipEcosystemIncentive release number
+    uint256 public tokenAmount = 10000000000*10**18;
+
+    uint256 public immutable startTime;
+
 
     event Release(IERC20 indexed token, address indexed user, uint256 amount);
 
     constructor(IERC20 token_,uint256 startTime_) {
         require(startTime_ >= block.timestamp, "TokenLock: The start time must be later than the present time");
         _token = token_;
-        _strategicInvestorPhasePrivateTime = _strategicInvestorPhaseSeedTime = _teamAndConsultantsTime = _communityRewardsTime = startTime_;
-        _teamAndConsultantsTime = startTime_ + 6 * months;
-        _treasuryTime = startTime_ + 3 * months;
-        _partnershipEcosystemIncentiveTime = startTime_ + 12 * months;
+        startTime = startTime_;
     }
 
     function release(uint256 releaseWho) public virtual {
-        require(releaseWho < 6, "release:Invalid values");
+        require(block.timestamp >= startTime, "release: current time is before release time");
+        require(releaseWho < 8, "release:Invalid values");
         if(0 == releaseWho){
             _releaseCommunityRewards(communityRewards);
         }
@@ -441,144 +431,79 @@ contract TokenLock {
         if(5 == releaseWho){
             _releasePartnershipEcosystemIncentive(partnershipEcosystemIncentive);
         }
-    }
-
-    function getTimeReleaseCommunityRewards() public view virtual returns (uint256 releaseTime) {
-        if(communityReleaseNumber < 36){
-            releaseTime = _communityRewardsTime + months;
+        if(6 == releaseWho){
+            _releaseMarketing(Marketing);
+        }
+        if(7 == releaseWho){
+            _releaseIDO(IDO);
         }
     }
 
     function _releaseCommunityRewards(address user) internal virtual returns (bool) {
-        require(getTimeReleaseCommunityRewards() !=0 && getTimeReleaseCommunityRewards() <= block.timestamp, 
-        "_releaseCommunityRewards:Conditions for release have not been met");
-        uint256 releaseAmount = communityRewardsFirstAmount;
-
+        require(!isRelease[user], "_releaseCommunityRewards:It has been released");
+        uint256 releaseAmount = tokenAmount * 25 /100;
         _release(user, releaseAmount);
-        
-        _communityRewardsTime = _communityRewardsTime + months;
-        communityReleaseNumber++;
-
-        if(communityReleaseNumber % 6 == 0){
-            communityRewardsFirstAmount= releaseAmount/2;
-        }
-
         return true;
     }
 
-    function getTimeReleaseTeamAndConsultants() public view virtual returns (uint256 releaseTime) {
-        if(teamAndConsultantsNumber < 24){
-            releaseTime = _teamAndConsultantsTime + months;
-        }else if(teamAndConsultantsNumber >= 24 && teamAndConsultantsNumber < 32){
-            releaseTime = _teamAndConsultantsTime + 3 * months;
-        }
-    }
+
 
     function _releaseTeamAndConsultants(address user) internal virtual returns (bool) {
-        require(getTimeReleaseTeamAndConsultants() !=0 && getTimeReleaseTeamAndConsultants() <= block.timestamp, 
-        "_releaseTeamAndConsultants:Conditions for release have not been met");
-        uint256 releaseAmount;
-        uint256 releaseTime;
-        if(teamAndConsultantsNumber < 24){
-            releaseAmount = tokenAmount*20/100/100*15/24;
-            releaseTime = _treasuryTime + months;
-        }else{
-            releaseAmount = tokenAmount*20/100/100*85/8;
-            releaseTime = _treasuryTime + 3 * months;
-        }
-
+        require(!isRelease[user], "_releaseTeamAndConsultants:It has been released");
+        require(startTime+6*30 days  <= block.timestamp, "_releaseTeamAndConsultants:current time is before release time");
+        //require(startTime+6*1 minutes  <= block.timestamp, "_releaseTeamAndConsultants:current time is before release time");
+        uint256 releaseAmount = tokenAmount * 20 /100;
         _release(user, releaseAmount);
-
-        _treasuryTime = releaseTime;
-        teamAndConsultantsNumber++;
-
         return true;
-    }
-
-    function getTimeReleaseTreasury() public view virtual returns (uint256 releaseTime) {
-        if(treasuryNumber < 25){
-            releaseTime = _treasuryTime + months;
-        }
     }
 
     function _releaseTreasury(address user) internal virtual returns (bool) {
-        require(getTimeReleaseTreasury() != 0 && getTimeReleaseTreasury() <= block.timestamp, 
-        "_releaseTreasury:Conditions for release have not been met");
-        uint256 releaseAmount;
-        if(treasuryNumber==0){
-            releaseAmount = tokenAmount*12/100/100*20;
-        }else{
-            releaseAmount = tokenAmount*12/100/100*80/24;
-        }
+        require(!isRelease[user], "_releaseTreasury:It has been released");
+        uint256 releaseAmount = tokenAmount * 12 /100;
         _release(user, releaseAmount);
-
-        _treasuryTime = _treasuryTime + months;
-        treasuryNumber++;
-
         return true;
     } 
-
-    function getTimeReleaseStrategicInvestorPhaseSeed() public view virtual returns (uint256 releaseTime) {
-        if(strategicInvestorPhaseSeedNumber < 12){
-            releaseTime = _strategicInvestorPhaseSeedTime + months;
-        }
-    }
 
     function _releaseStrategicInvestorPhaseSeed(address user) internal virtual returns (bool) {
-        require(getTimeReleaseStrategicInvestorPhaseSeed() != 0 && getTimeReleaseStrategicInvestorPhaseSeed() <= block.timestamp, 
-        "_releaseStrategicInvestorPhaseSeed:Conditions for release have not been met");
-        uint256 releaseAmount = tokenAmount*10/100/100*84/12;
-        
+        require(!isRelease[user], "_releaseStrategicInvestorPhaseSeed:It has been released");
+        uint256 releaseAmount = tokenAmount * 10 /100;
         _release(user, releaseAmount);
-
-        _strategicInvestorPhaseSeedTime = _strategicInvestorPhaseSeedTime + months;
-        strategicInvestorPhaseSeedNumber++;
-
         return true;
     } 
 
-    function getTimeReleaseStrategicInvestorPhasePrivate() public view virtual returns (uint256 releaseTime) {
-        if(strategicInvestorPhasePrivateNumber < 12){
-            releaseTime = _strategicInvestorPhasePrivateTime + months;
-        }
-    }
-
     function _releaseStrategicInvestorPhasePrivate(address user) internal virtual returns (bool) {
-        require(getTimeReleaseStrategicInvestorPhasePrivate() != 0 && getTimeReleaseStrategicInvestorPhasePrivate() <= block.timestamp, 
-        "_releaseStrategicInvestorPhasePrivate:Conditions for release have not been met");
-        uint256 releaseAmount = tokenAmount*10/100/100*84/12;
-        
+        require(!isRelease[user], "_releaseStrategicInvestorPhasePrivate:It has been released");
+        uint256 releaseAmount = tokenAmount * 10 /100;
         _release(user, releaseAmount);
-
-        _strategicInvestorPhasePrivateTime = _strategicInvestorPhasePrivateTime + months;
-        strategicInvestorPhasePrivateNumber++;
-
         return true;
-    }
-
-    function getTimeReleasePartnershipEcosystemIncentive() public view virtual returns (uint256 releaseTime) {
-        if(partnershipEcosystemIncentiveNumber < 24 && block.timestamp >= _partnershipEcosystemIncentiveTime + months){
-            releaseTime = _partnershipEcosystemIncentiveTime + months;
-        }
     }
 
     function _releasePartnershipEcosystemIncentive(address user) internal virtual returns (bool) {
-        require(getTimeReleasePartnershipEcosystemIncentive() != 0 && getTimeReleasePartnershipEcosystemIncentive() <= block.timestamp, 
-        "_releasePartnershipEcosystemIncentive:Conditions for release have not been met");
-        uint256 releaseAmount = tokenAmount*8/100/24;
-       
+        require(!isRelease[user], "_releasePartnershipEcosystemIncentive:It has been released");
+        uint256 releaseAmount = tokenAmount * 8 /100;
         _release(user, releaseAmount);
-        _partnershipEcosystemIncentiveTime = _partnershipEcosystemIncentiveTime + months;
-        partnershipEcosystemIncentiveNumber++;
+        return true;
+    }
 
+    function _releaseMarketing(address user) internal virtual returns (bool) {
+        require(!isRelease[user], "_releaseMarketing:It has been released");
+        uint256 releaseAmount = tokenAmount * 14 /100;
+        _release(user, releaseAmount);
+        return true;
+    }
+
+    function _releaseIDO(address user) internal virtual returns (bool) {
+        require(!isRelease[user], "_releaseIDO:It has been released");
+        uint256 releaseAmount = tokenAmount * 1 /100;
+        _release(user, releaseAmount);
         return true;
     }
 
     function _release(address user, uint256 amount) internal virtual {
-        amount = amount*10**18;
         require(IERC20(_token).balanceOf(address(this)) >= amount, "_release:token balance insufficient");
         IERC20(_token).safeTransfer(user, amount);
-
+        
+        isRelease[user] = true;
         emit Release(_token, user, amount);
     }      
 
